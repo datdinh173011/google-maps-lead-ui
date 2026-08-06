@@ -1,0 +1,43 @@
+services:
+  google-maps-scraper:
+    image: gosom/google-maps-scraper:latest
+    container_name: google-maps-scraper
+    restart: unless-stopped
+    command:
+      - "-data-folder"
+      - "/gmapsdata"
+      - "-addr"
+      - "0.0.0.0:8080"
+      - "-c"
+      - "2"
+      - "-browser-pool-size"
+      - "1"
+      - "-pages-per-browser"
+      - "2"
+    expose:
+      - "8080"
+    volumes:
+      - ./data:/gmapsdata
+      - playwright-cache:/opt
+    shm_size: "2gb"
+    environment:
+      TZ: Asia/Ho_Chi_Minh
+
+  lead-ui:
+    build: .
+    container_name: google-maps-lead-ui
+    restart: unless-stopped
+    depends_on:
+      - google-maps-scraper
+    environment:
+      SCRAPER_BASE_URL: http://google-maps-scraper:8080
+      SCRAPER_REQUEST_TIMEOUT: "30"
+      # Đổi ngay trước khi public ra Internet.
+      APP_USERNAME: admin
+      APP_PASSWORD: change-me-now
+      TZ: Asia/Ho_Chi_Minh
+    ports:
+      - "8081:8000"
+
+volumes:
+  playwright-cache:

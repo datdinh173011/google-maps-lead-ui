@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Quét khách hàng Google Maps</title>
+  <style>
+    :root { color-scheme: light; --primary:#0e7490; --primary-dark:#155e75; --bg:#f1f5f9; --text:#0f172a; --muted:#64748b; --border:#cbd5e1; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:linear-gradient(135deg,#ecfeff,#f8fafc 55%,#e0f2fe); color:var(--text); min-height:100vh; }
+    .container { width:min(1050px,calc(100% - 32px)); margin:40px auto; }
+    .hero { margin-bottom:22px; }
+    h1 { margin:0 0 8px; font-size:clamp(28px,4vw,44px); letter-spacing:-.04em; }
+    .hero p { color:var(--muted); margin:0; font-size:17px; }
+    .grid { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(320px,.85fr); gap:22px; align-items:start; }
+    .card { background:rgba(255,255,255,.94); border:1px solid rgba(203,213,225,.9); border-radius:20px; padding:24px; box-shadow:0 16px 45px rgba(15,23,42,.08); }
+    label { display:block; font-weight:700; margin-bottom:7px; }
+    .help { display:block; margin-top:6px; color:var(--muted); font-size:13px; }
+    input, textarea, select { width:100%; border:1px solid var(--border); border-radius:12px; padding:12px 14px; font:inherit; background:#fff; outline:none; transition:.18s; }
+    input:focus, textarea:focus, select:focus { border-color:var(--primary); box-shadow:0 0 0 3px rgba(14,116,144,.14); }
+    textarea { min-height:108px; resize:vertical; }
+    .field { margin-bottom:18px; }
+    .row { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+    .checks { display:flex; flex-wrap:wrap; gap:16px; margin:6px 0 20px; }
+    .check { display:flex; gap:9px; align-items:center; font-weight:600; }
+    .check input { width:18px; height:18px; }
+    button { border:0; border-radius:12px; padding:13px 18px; font:inherit; font-weight:800; cursor:pointer; transition:.18s; }
+    .primary { width:100%; color:#fff; background:linear-gradient(135deg,var(--primary),var(--primary-dark)); box-shadow:0 10px 24px rgba(14,116,144,.25); }
+    button:hover { transform:translateY(-1px); }
+    button:disabled { opacity:.55; cursor:not-allowed; transform:none; }
+    .status-empty { color:var(--muted); text-align:center; padding:46px 12px; }
+    .status-pill { display:inline-flex; align-items:center; gap:8px; border-radius:999px; padding:7px 11px; background:#e2e8f0; font-size:13px; font-weight:800; text-transform:uppercase; }
+    .status-pill.pending { background:#fef3c7; color:#92400e; }
+    .status-pill.working { background:#dbeafe; color:#1d4ed8; }
+    .status-pill.ok { background:#dcfce7; color:#166534; }
+    .status-pill.failed { background:#fee2e2; color:#991b1b; }
+    .spinner { width:12px; height:12px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:spin .8s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .job-title { margin:16px 0 7px; font-size:21px; }
+    .keywords { margin:14px 0; padding:14px 16px 14px 34px; background:#f8fafc; border-radius:12px; color:#334155; }
+    .downloads { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:18px; }
+    .download { display:block; text-align:center; padding:11px; border-radius:11px; text-decoration:none; font-weight:800; border:1px solid #a5f3fc; color:#155e75; background:#ecfeff; }
+    .download.full { border-color:#cbd5e1; background:#f8fafc; color:#334155; }
+    .error { margin-top:14px; padding:12px 14px; border-radius:12px; background:#fee2e2; color:#991b1b; white-space:pre-wrap; }
+    .note { margin-top:15px; color:var(--muted); font-size:13px; line-height:1.5; }
+    @media (max-width:820px) { .grid { grid-template-columns:1fr; } }
+    @media (max-width:520px) { .row,.downloads { grid-template-columns:1fr; } .container { margin:22px auto; } .card { padding:19px; } }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <section class="hero">
+      <h1>Quét khách hàng Google Maps</h1>
+      <p>Nhập ngành nghề và khu vực, hệ thống tự tạo job rồi xuất CSV hoặc Excel.</p>
+    </section>
+
+    <section class="grid">
+      <form id="scrape-form" class="card">
+        <div class="field">
+          <label for="industry">Ngành nghề</label>
+          <input id="industry" name="industry" placeholder="Ví dụ: spa, nha khoa, nhà hàng Nhật" required />
+        </div>
+        <div class="field">
+          <label for="area">Khu vực chính</label>
+          <input id="area" name="area" placeholder="Ví dụ: TP Hồ Chí Minh" required />
+        </div>
+        <div class="field">
+          <label for="subareas">Quận/huyện cần quét</label>
+          <textarea id="subareas" name="subareas" placeholder="Mỗi dòng một khu vực, ví dụ:&#10;Quận 1&#10;Quận 3&#10;Quận 7"></textarea>
+          <span class="help">Để trống sẽ tạo một truy vấn chung cho toàn khu vực.</span>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="depth">Độ sâu</label>
+            <select id="depth" name="depth">
+              <option value="1">1 — Test nhanh</option>
+              <option value="3">3 — Cân bằng</option>
+              <option value="5">5 — Nhiều kết quả</option>
+              <option value="10">10 — Quét sâu</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="max_time">Thời gian tối đa</label>
+            <select id="max_time" name="max_time">
+              <option value="600">10 phút</option>
+              <option value="1200">20 phút</option>
+              <option value="1800">30 phút</option>
+              <option value="3600">60 phút</option>
+            </select>
+          </div>
+        </div>
+        <div class="checks">
+          <label class="check"><input id="email" type="checkbox" /> Tìm email website</label>
+          <label class="check"><input id="extra_reviews" type="checkbox" /> Lấy thêm review</label>
+        </div>
+        <button id="submit-button" class="primary" type="submit">Bắt đầu quét</button>
+        <div class="note">Nên test với depth 1 và chưa bật email. Sau khi ổn định mới tăng độ sâu hoặc quét nhiều quận.</div>
+      </form>
+
+      <section class="card" id="job-panel">
+        <div class="status-empty">Chưa có job. Hãy nhập thông tin và bắt đầu quét.</div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const form = document.getElementById('scrape-form');
+    const panel = document.getElementById('job-panel');
+    const submitButton = document.getElementById('submit-button');
+    let pollingTimer = null;
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[char]));
+    }
+
+    function statusLabel(status) {
+      return ({pending:'Đang chờ', working:'Đang quét', ok:'Hoàn thành', failed:'Thất bại'})[status] || status;
+    }
+
+    function renderJob(job, error = '') {
+      const status = job.status || 'pending';
+      const spinning = ['pending','working'].includes(status) ? '<span class="spinner"></span>' : '';
+      const keywords = (job.keywords || []).map(k => `<li>${escapeHtml(k)}</li>`).join('');
+      const downloads = status === 'ok' ? `
+        <div class="downloads">
+          <a class="download" href="/api/jobs/${job.id}/download?format=xlsx&mode=clean">Excel gọn</a>
+          <a class="download" href="/api/jobs/${job.id}/download?format=csv&mode=clean">CSV gọn</a>
+          <a class="download full" href="/api/jobs/${job.id}/download?format=xlsx&mode=full">Excel đầy đủ</a>
+          <a class="download full" href="/api/jobs/${job.id}/download?format=csv&mode=full">CSV đầy đủ</a>
+        </div>` : '';
+
+      panel.innerHTML = `
+        <span class="status-pill ${escapeHtml(status)}">${spinning}${escapeHtml(statusLabel(status))}</span>
+        <h2 class="job-title">${escapeHtml(job.name || 'Job Google Maps')}</h2>
+        <div class="help">ID: ${escapeHtml(job.id)}</div>
+        ${keywords ? `<ul class="keywords">${keywords}</ul>` : ''}
+        ${downloads}
+        ${error ? `<div class="error">${escapeHtml(error)}</div>` : ''}
+        ${['pending','working'].includes(status) ? '<div class="note">Trang tự kiểm tra trạng thái sau mỗi 3 giây. CSV được ghi dần nhưng chỉ nên tải khi job hoàn thành. Bản gọn tự loại trùng và bỏ kết quả ngoài khu vực chính.</div>' : ''}
+      `;
+    }
+
+    async function readError(response) {
+      try {
+        const body = await response.json();
+        return body.detail || JSON.stringify(body);
+      } catch (_) {
+        return await response.text();
+      }
+    }
+
+    async function pollJob(job) {
+      clearTimeout(pollingTimer);
+      try {
+        const response = await fetch(`/api/jobs/${job.id}`);
+        if (!response.ok) throw new Error(await readError(response));
+        const latest = await response.json();
+        latest.keywords = latest.keywords?.length ? latest.keywords : job.keywords;
+        latest.name = latest.name || job.name;
+        renderJob(latest);
+        if (['pending','working'].includes(latest.status)) {
+          pollingTimer = setTimeout(() => pollJob(latest), 3000);
+        } else {
+          submitButton.disabled = false;
+          submitButton.textContent = 'Bắt đầu job mới';
+        }
+      } catch (error) {
+        renderJob(job, error.message);
+        pollingTimer = setTimeout(() => pollJob(job), 5000);
+      }
+    }
+
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      clearTimeout(pollingTimer);
+      submitButton.disabled = true;
+      submitButton.textContent = 'Đang tạo job...';
+      panel.innerHTML = '<div class="status-empty"><span class="spinner"></span> Đang gửi yêu cầu tới scraper...</div>';
+
+      const subareas = document.getElementById('subareas').value
+        .split('\n').map(v => v.trim()).filter(Boolean);
+      const payload = {
+        industry: document.getElementById('industry').value,
+        area: document.getElementById('area').value,
+        subareas,
+        depth: Number(document.getElementById('depth').value),
+        max_time: Number(document.getElementById('max_time').value),
+        email: document.getElementById('email').checked,
+        extra_reviews: document.getElementById('extra_reviews').checked,
+      };
+
+      try {
+        const response = await fetch('/api/jobs', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error(await readError(response));
+        const job = await response.json();
+        renderJob(job);
+        pollJob(job);
+      } catch (error) {
+        submitButton.disabled = false;
+        submitButton.textContent = 'Bắt đầu quét';
+        panel.innerHTML = `<div class="error">${escapeHtml(error.message)}</div>`;
+      }
+    });
+  </script>
+</body>
+</html>
